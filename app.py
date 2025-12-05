@@ -10,6 +10,9 @@ from geopy.exc import GeocoderServiceError
 import folium
 from streamlit_folium import st_folium
 from urllib.parse import urlencode, quote_plus
+from geopy.distance import geodesic
+from streamlit_extras.let_it_rain import rain
+from streamlit_extras.stoggle import stoggle
 
 # Page config for layout and title
 st.set_page_config(page_title="NYC Taxi Fare Estimator", layout="wide")
@@ -44,11 +47,11 @@ st.markdown(
         padding: 0;
         /* Horizontal stripes left-to-right (change angle to 90deg/0deg/45deg for vertical/diagonal) */
         background-image: repeating-linear-gradient(
-            90deg,
-            {USA_BLUE} 0 50px,
-            {USA_WHITE} 50px 100px,
-            {USA_RED} 100px 150px,
-            {USA_WHITE} 150px 200px
+            0deg,
+            {USA_BLUE} 0 10px,
+            {USA_WHITE} 10px 20px,
+            {USA_RED} 20px 30px,
+            {USA_WHITE} 30px 40px
         );
         background-attachment: fixed;
         background-size: auto;
@@ -56,11 +59,24 @@ st.markdown(
         color: {CONTRAST_BLACK};
     }}
 
-    /* Make the main content container have a slightly opaque background so text/card readability is preserved */
+    /* Sidebar background */
+    div[data-testid="stSidebar"] {{
+            background-color: {MAIN_YELLOW} !important;
+            color: {CONTRAST_BLACK} !important;
+    }}
+
+    /* Make the main content container have a centered horizontal gradient background */
     .block-container {{
-        background-color: rgba(255,255,255,0.85);
-        border-radius: 8px;
+        background: linear-gradient(
+            90deg,
+            rgba(255,255,255,0.0) 8%,
+            rgba(255,255,255,0.95) 18%,
+            rgba(255,255,255,0.95) 82%,
+            rgba(255,255,255,0.0) 92%
+        );
+        border-radius: 12px;
         padding: 1.25rem;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.06);
     }}
 
     /* Buttons */
@@ -72,10 +88,80 @@ st.markdown(
 
     /* Small styling tweaks */
     h1, h2, h3 {{
-        color: {CONTRAST_BLACK};
+        color: {MAIN_YELLOW};
     }}
     .folium-map {{
+        display: block;
+        margin: 0 auto;
         border-radius: 8px;
+    }}
+
+    /* Slider: rendre la piste et le "thumb" en jaune (MAIN_YELLOW) */
+    /* Piste (track) */
+    input[type="range"] {{
+        -webkit-appearance: none;
+        width: 100%;
+        height: 10px;
+        background: rgba(0,0,0,0.15); /* piste non-active */
+        border-radius: 6px;
+        outline: none;
+    }}
+    /* Remplissage avant le thumb (WebKit) : on simule en utilisant background en ligne */
+    input[type="range"]::-webkit-slider-runnable-track {{
+        background: linear-gradient(90deg, {MAIN_YELLOW} 0%, {MAIN_YELLOW} 100%);
+        height: 10px;
+        border-radius: 6px;
+    }}
+    input[type="range"]::-webkit-slider-thumb {{
+        -webkit-appearance: none;
+        margin-top: -3px; /* recentre le pouce verticalement */
+        width: 18px;
+        height: 18px;
+        background: {MAIN_YELLOW};
+        border: 2px solid {CONTRAST_BLACK};
+        border-radius: 50%;
+        box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+        cursor: pointer;
+    }}
+    /* Firefox */
+    input[type="range"]::-moz-range-track {{
+        background: rgba(0,0,0,0.15);
+        height: 10px;
+        border-radius: 6px;
+    }}
+    input[type="range"]::-moz-range-progress {{
+        background: {MAIN_YELLOW};
+        height: 10px;
+        border-radius: 6px;
+    }}
+    input[type="range"]::-moz-range-thumb {{
+        width: 18px;
+        height: 18px;
+        background: {MAIN_YELLOW};
+        border: 2px solid {CONTRAST_BLACK};
+        border-radius: 50%;
+        cursor: pointer;
+    }}
+    /* Edge / IE fallback */
+    input[type="range"]::-ms-fill-lower {{
+        background: {MAIN_YELLOW};
+    }}
+    input[type="range"]::-ms-thumb {{
+        background: {MAIN_YELLOW};
+        border: 2px solid {CONTRAST_BLACK};
+    }}
+
+    :root, .stApp {{
+      --primaryColor: {MAIN_YELLOW};
+    }}
+
+    /* Map title style: centered and pushed down to avoid header overlap */
+    .map-title {{
+        text-align: center;
+        margin-top: 48px; /* push down so it doesn't blend with Streamlit header */
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: {CONTRAST_BLACK};
     }}
     </style>
     """,
@@ -134,19 +220,44 @@ if "dropoff_coords" not in st.session_state:
 # Sidebar: inputs for addresses, passengers, date/time
 # ------------------------
 with st.sidebar:
-    st.title("Taxi Fare Estimator")
+    st.title("🚕 Fare Estimator")
     st.markdown("Enter pickup and dropoff addresses, or click the map to fill them.")
 
-    # Address inputs (editable)
+    # Pickup address input
     st.session_state["pickup_address"] = st.text_input(
         "Pickup address", value=st.session_state["pickup_address"], placeholder="e.g. 350 5th Ave, New York, NY"
     )
+
+    # Distance display BETWEEN the two address inputs
+    if st.session_state.get("pickup_coords") and st.session_state.get("dropoff_coords"):
+        p_lat, p_lon = st.session_state["pickup_coords"]
+        d_lat, d_lon = st.session_state["dropoff_coords"]
+        try:
+            dist_km = geodesic((p_lat, p_lon), (d_lat, d_lon)).km
+            st.markdown(f"**Distance:** {dist_km:.2f} km ({dist_km/1.60934:.2f} miles)")
+        except Exception:
+            st.markdown("**Distance :** impossible à calculer")
+    else:
+        st.markdown("Distance : définie après avoir sélectionné Pickup & Dropoff sur la carte ou utilisez **Locate on map**")
+
+    # Dropoff address input
     st.session_state["dropoff_address"] = st.text_input(
         "Dropoff address", value=st.session_state["dropoff_address"], placeholder="e.g. 1 Liberty Island, New York, NY"
     )
 
-    # Controls to pick whether map clicks set pickup or dropoff coordinate
-    map_click_target = st.radio("Map click fills", ("Pickup", "Dropoff"))
+    # Collapsible instructions for the map (uses stoggle if available, else st.expander)
+    _map_instructions = """
+**Carte :**
+- 1er clic = pickup
+- 2e clic = dropoff
+- Si les deux points sont déjà définis, un nouveau clic recommence la sélection (nouveau pickup).
+Utilise le bouton *Clear coordinates* pour réinitialiser.
+    """
+    try:
+        stoggle("Carte — Instructions", _map_instructions)
+    except Exception:
+        with st.expander("Carte — Instructions"):
+            st.markdown(_map_instructions)
 
     # Button to geocode both addresses and show them on the map
     if st.button("Locate on map"):
@@ -172,7 +283,7 @@ with st.sidebar:
     pickup_time = st.time_input("Pickup time", value=datetime.now().time().replace(microsecond=0))
 
     # Button to call API and get price
-    if st.button("Get estimated fare"):
+    if st.button("Estimate 🚕 fare"):
         # Validate coordinates: if missing, try to geocode from typed addresses
         if st.session_state["pickup_coords"] is None:
             st.session_state["pickup_coords"] = geocode_address(st.session_state["pickup_address"])
@@ -216,14 +327,15 @@ with st.sidebar:
 
                 try:
                     resp = requests.get(full_url, timeout=10)
+                    """
                     # DEBUG: show status, headers, and body to help diagnose if needed
                     st.write("API status:", resp.status_code)
                     st.write("API headers:", dict(resp.headers))
                     st.write("API body:", resp.text[:2000])
+                    """
 
                     resp.raise_for_status()
                     data = resp.json() if resp.content else None
-
                     # Robust parsing of common response formats (keeps your original logic)
                     prediction = None
                     if data is None:
@@ -246,7 +358,7 @@ with st.sidebar:
                         st.error(f"Couldn't parse prediction from API response: {data or resp.text}")
                     else:
                         st.success(f"Estimated fare: 💲{float(prediction):.2f}")
-                        st.balloons()
+                        rain('💲',72,7,[5,'infinite'])
 
                 except requests.HTTPError as e:
                     # If you still see 405, show the raw response for debugging
@@ -303,34 +415,55 @@ if st.session_state["dropoff_coords"]:
         popup=f"Dropoff: {st.session_state['dropoff_address'] or 'Selected on map'}",
     ).add_to(m)
 
-# Show map and capture clicks. The return value contains "last_clicked"
-st.markdown("### Map (click to set coordinates)")
-map_data = st_folium(m, width=900, height=600)
+# Tracer une ligne entre pickup et dropoff si les deux existent
+if st.session_state.get("pickup_coords") and st.session_state.get("dropoff_coords"):
+    p = st.session_state["pickup_coords"]
+    d = st.session_state["dropoff_coords"]
+    folium.PolyLine(locations=[p, d], color=CONTRAST_BLACK, weight=3, opacity=0.85).add_to(m)
 
-# If the map was clicked, map_data contains 'last_clicked' with lat/lng
+# Show map and capture clicks. The return value contains "last_clicked"
+st.markdown('<div class="map-title">Map (click to set coordinates)</div>', unsafe_allow_html=True)
+cols = st.columns([1, 2, 1])
+with cols[1]:
+    map_data = st_folium(m, width=900, height=600)
+
+# Si la carte a été cliquée, map_data contient 'last_clicked' avec lat/lng
 if map_data and map_data.get("last_clicked"):
     clicked = map_data["last_clicked"]
     lat = clicked.get("lat")
     lon = clicked.get("lng")
     if lat is not None and lon is not None:
-        # Reverse geocode the click to an address string
+        # Reverse geocode le click en adresse
         address = reverse_geocode(lat, lon)
-        if map_click_target == "Pickup":
+
+        # 1) Si pickup manquant -> on le définit
+        if st.session_state["pickup_coords"] is None:
             st.session_state["pickup_coords"] = (lat, lon)
             if address:
                 st.session_state["pickup_address"] = address
-            st.success("Map click saved to Pickup")
-        else:
+            st.success("Pickup sélectionné — cliquez de nouveau pour définir le dropoff")
+
+        # 2) Sinon si dropoff manquant -> on le définit
+        elif st.session_state["dropoff_coords"] is None:
             st.session_state["dropoff_coords"] = (lat, lon)
             if address:
                 st.session_state["dropoff_address"] = address
-            st.success("Map click saved to Dropoff")
+            st.success("Dropoff sélectionné")
 
-# Small note explaining interactivity
-st.markdown(
-    """
-    - Use the sidebar to enter addresses and press **Locate on map** to geocode them.
-    - Or select whether **Map click fills** Pickup/Dropoff and click on the map to set coordinates.
-    - Press **Get estimated fare** once both pickup and dropoff are set.
-    """
-)
+        # 3) Sinon (les deux sont déjà définis) -> on recommence : nouveau pickup, on efface dropoff
+        else:
+            st.session_state["pickup_coords"] = (lat, lon)
+            st.session_state["dropoff_coords"] = None
+            st.session_state["dropoff_address"] = ""
+            if address:
+                st.session_state["pickup_address"] = address
+            st.info("Les deux points étaient définis — nouvelle sélection de Pickup commencée (cliquez pour définir le dropoff)")
+
+# Bouton pour effacer les coords/addresses
+with cols[1]:
+    if st.button("Clear coordinates"):
+        st.session_state["pickup_coords"] = None
+        st.session_state["dropoff_coords"] = None
+        st.session_state["pickup_address"] = ""
+        st.session_state["dropoff_address"] = ""
+        st.success("Pickup et Dropoff effacés")
