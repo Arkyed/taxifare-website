@@ -36,27 +36,44 @@ USA_BLUE = "#003b79"
 st.markdown(
     f"""
     <style>
-    /* Page background and text */
-    .stApp {{
-        background-color: {USA_WHITE};
+    /* Ensure the page and body show the background stripes */
+    html, body, .stApp {{
+        min-height: 100vh;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        /* Horizontal stripes left-to-right (change angle to 90deg/0deg/45deg for vertical/diagonal) */
+        background-image: repeating-linear-gradient(
+            90deg,
+            {USA_BLUE} 0 50px,
+            {USA_WHITE} 50px 100px,
+            {USA_RED} 100px 150px,
+            {USA_WHITE} 150px 200px
+        );
+        background-attachment: fixed;
+        background-size: auto;
+        /* keep text readable */
         color: {CONTRAST_BLACK};
     }}
-    /* Sidebar background */
-    .css-1d391kg .css-1d391kg{{}}
-    .block-container .sidebar .stButton, .css-1v0mbdj .stButton {{
+
+    /* Make the main content container have a slightly opaque background so text/card readability is preserved */
+    .block-container {{
+        background-color: rgba(255,255,255,0.85);
         border-radius: 8px;
+        padding: 1.25rem;
     }}
-    /* Streamlit button primary color */
+
+    /* Buttons */
     .stButton>button {{
         background-color: {MAIN_YELLOW};
         color: {CONTRAST_BLACK};
         border: none;
     }}
-    /* Header style */
+
+    /* Small styling tweaks */
     h1, h2, h3 {{
         color: {CONTRAST_BLACK};
     }}
-    /* Small adjustments for folium map container */
     .folium-map {{
         border-radius: 8px;
     }}
