@@ -23,41 +23,49 @@ st.set_page_config(page_title="NYC Taxi Fare Estimator", layout="wide")
 # Colors:
 # - main: #FFDE38 (yellow)
 # - contrast: black
-# - usa_red: #cd0039
 # - usa_white: #ffffff
-# - usa_blue: #003b79
 #
 # You can edit these variables to change the look.
 MAIN_YELLOW = "#FFDE38"
 CONTRAST_BLACK = "#000000"
-USA_RED = "#cd0039"
 USA_WHITE = "#ffffff"
-USA_BLUE = "#003b79"
 
 # Minimal CSS to adapt page and sidebar colors. Streamlit class names change,
 # so this is intentionally lightweight. Edit or expand if you want more control.
 st.markdown(
     f"""
     <style>
-    /* Ensure the page and body show the background stripes */
+    /* Ensure the page and body show solid yellow background with side checkerboard */
     html, body, .stApp {{
         min-height: 100vh;
         height: 100%;
         margin: 0;
         padding: 0;
-        /* Horizontal stripes left-to-right (change angle to 90deg/0deg/45deg for vertical/diagonal) */
-        background-image: repeating-linear-gradient(
-            0deg,
-            {USA_BLUE} 0 10px,
-            {USA_WHITE} 10px 20px,
-            {USA_RED} 20px 30px,
-            {USA_WHITE} 30px 40px
-        );
-        background-attachment: fixed;
-        background-size: auto;
-        /* keep text readable */
+        /* Solid main background */
+        background-color: {MAIN_YELLOW};
         color: {CONTRAST_BLACK};
+        position: relative;
     }}
+
+    /* Decorative side checkerboard strips (black/yellow squares) */
+    body::before, body::after {{
+        content: "";
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        width: 120px;
+        z-index: 0;
+        /* vertical repeating squares (40px each) */
+        background-image: repeating-linear-gradient(
+            to bottom,
+            {CONTRAST_BLACK} 0 40px,
+            {MAIN_YELLOW} 40px 80px
+        );
+        background-repeat: repeat-y;
+        background-size: 120px 80px;
+    }}
+    body::before {{ left: 0; }}
+    body::after  {{ right: 0; }}
 
     /* Sidebar background */
     div[data-testid="stSidebar"] {{
@@ -67,6 +75,8 @@ st.markdown(
 
     /* Make the main content container have a centered horizontal gradient background */
     .block-container {{
+        position: relative;
+        z-index: 1;
         background: linear-gradient(
             90deg,
             rgba(255,255,255,0.0) 8%,
@@ -162,6 +172,24 @@ st.markdown(
         margin-bottom: 8px;
         font-weight: 600;
         color: {CONTRAST_BLACK};
+    }}
+
+    /* Postcard images on the sides */
+    .postcard {{
+      width: 100%;
+      max-height: 260px;
+      height: 260px;
+      object-fit: cover;
+      border-radius: 10px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+      display: block;
+      margin-bottom: 12px;
+    }}
+    .postcard-small {{
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 8px;
     }}
     </style>
     """,
@@ -402,15 +430,15 @@ if st.session_state["pickup_coords"]:
         popup=f"Pickup: {st.session_state['pickup_address'] or 'Selected on map'}",
     ).add_to(m)
 
-# Add dropoff marker (blue)
+# Add dropoff marker (black)
 if st.session_state["dropoff_coords"]:
     lat, lon = st.session_state["dropoff_coords"]
     folium.CircleMarker(
         location=(lat, lon),
         radius=8,
-        color=USA_BLUE,
+        color=CONTRAST_BLACK,
         fill=True,
-        fill_color=USA_BLUE,
+        fill_color=CONTRAST_BLACK,
         fill_opacity=0.9,
         popup=f"Dropoff: {st.session_state['dropoff_address'] or 'Selected on map'}",
     ).add_to(m)
@@ -421,11 +449,41 @@ if st.session_state.get("pickup_coords") and st.session_state.get("dropoff_coord
     d = st.session_state["dropoff_coords"]
     folium.PolyLine(locations=[p, d], color=CONTRAST_BLACK, weight=3, opacity=0.85).add_to(m)
 
-# Show map and capture clicks. The return value contains "last_clicked"
-st.markdown('<div class="map-title">Map (click to set coordinates)</div>', unsafe_allow_html=True)
+# Images postales + carte centrée + bouton Clear centré
+left_images = [
+    "https://source.unsplash.com/800x600/?statue-of-liberty,new-york",
+    "https://source.unsplash.com/800x600/?brooklyn-bridge,new-york"
+]
+right_images = [
+    "https://source.unsplash.com/800x600/?times-square,new-york",
+    "https://source.unsplash.com/800x600/?central-park,new-york"
+]
+
+# Layout: left postcards | center map | right postcards
 cols = st.columns([1, 2, 1])
+
+# Left column postcards (stacked)
+with cols[0]:
+    for url in left_images:
+        st.markdown(f'<img class="postcard" src="{url}" alt="postcard" loading="lazy" />', unsafe_allow_html=True)
+
+# Center: title + map
 with cols[1]:
+    st.markdown('<div class="map-title">Map (click to set coordinates)</div>', unsafe_allow_html=True)
     map_data = st_folium(m, width=900, height=600)
+
+    # Clear button centered under the map
+    if st.button("Clear coordinates"):
+        st.session_state["pickup_coords"] = None
+        st.session_state["dropoff_coords"] = None
+        st.session_state["pickup_address"] = ""
+        st.session_state["dropoff_address"] = ""
+        st.success("Pickup et Dropoff effacés")
+
+# Right column postcards (stacked)
+with cols[2]:
+    for url in right_images:
+        st.markdown(f'<img class="postcard" src="{url}" alt="postcard" loading="lazy" />', unsafe_allow_html=True)
 
 # Si la carte a été cliquée, map_data contient 'last_clicked' avec lat/lng
 if map_data and map_data.get("last_clicked"):
@@ -458,12 +516,3 @@ if map_data and map_data.get("last_clicked"):
             if address:
                 st.session_state["pickup_address"] = address
             st.info("Les deux points étaient définis — nouvelle sélection de Pickup commencée (cliquez pour définir le dropoff)")
-
-# Bouton pour effacer les coords/addresses
-with cols[1]:
-    if st.button("Clear coordinates"):
-        st.session_state["pickup_coords"] = None
-        st.session_state["dropoff_coords"] = None
-        st.session_state["pickup_address"] = ""
-        st.session_state["dropoff_address"] = ""
-        st.success("Pickup et Dropoff effacés")
