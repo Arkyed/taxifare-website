@@ -53,7 +53,7 @@ st.markdown(
         position: fixed;
         top: 0;
         bottom: 0;
-        width: 120px;
+        width: 40px;
         z-index: 0;
         /* vertical repeating squares (40px each) */
         background-image: repeating-linear-gradient(
@@ -79,10 +79,10 @@ st.markdown(
         z-index: 1;
         background: linear-gradient(
             90deg,
-            rgba(255,255,255,0.0) 8%,
-            rgba(255,255,255,0.95) 18%,
-            rgba(255,255,255,0.95) 82%,
-            rgba(255,255,255,0.0) 92%
+            rgb(0,0,0,0) 8%,
+            rgb(0,0,0,0) 18%,
+            rgb(0,0,0,0) 82%,
+            rgb(0,0,0,0) 92%
         );
         border-radius: 12px;
         padding: 1.25rem;
@@ -171,7 +171,7 @@ st.markdown(
         margin-top: 48px; /* push down so it doesn't blend with Streamlit header */
         margin-bottom: 8px;
         font-weight: 600;
-        color: {CONTRAST_BLACK};
+        color: {USA_WHITE};
     }}
 
     /* Postcard images on the sides */
@@ -355,12 +355,6 @@ Utilise le bouton *Clear coordinates* pour réinitialiser.
 
                 try:
                     resp = requests.get(full_url, timeout=10)
-                    """
-                    # DEBUG: show status, headers, and body to help diagnose if needed
-                    st.write("API status:", resp.status_code)
-                    st.write("API headers:", dict(resp.headers))
-                    st.write("API body:", resp.text[:2000])
-                    """
 
                     resp.raise_for_status()
                     data = resp.json() if resp.content else None
@@ -449,23 +443,10 @@ if st.session_state.get("pickup_coords") and st.session_state.get("dropoff_coord
     d = st.session_state["dropoff_coords"]
     folium.PolyLine(locations=[p, d], color=CONTRAST_BLACK, weight=3, opacity=0.85).add_to(m)
 
-# Images postales + carte centrée + bouton Clear centré
-left_images = [
-    "https://source.unsplash.com/800x600/?statue-of-liberty,new-york",
-    "https://source.unsplash.com/800x600/?brooklyn-bridge,new-york"
-]
-right_images = [
-    "https://source.unsplash.com/800x600/?times-square,new-york",
-    "https://source.unsplash.com/800x600/?central-park,new-york"
-]
+
 
 # Layout: left postcards | center map | right postcards
 cols = st.columns([1, 2, 1])
-
-# Left column postcards (stacked)
-with cols[0]:
-    for url in left_images:
-        st.markdown(f'<img class="postcard" src="{url}" alt="postcard" loading="lazy" />', unsafe_allow_html=True)
 
 # Center: title + map
 with cols[1]:
@@ -479,11 +460,6 @@ with cols[1]:
         st.session_state["pickup_address"] = ""
         st.session_state["dropoff_address"] = ""
         st.success("Pickup et Dropoff effacés")
-
-# Right column postcards (stacked)
-with cols[2]:
-    for url in right_images:
-        st.markdown(f'<img class="postcard" src="{url}" alt="postcard" loading="lazy" />', unsafe_allow_html=True)
 
 # Si la carte a été cliquée, map_data contient 'last_clicked' avec lat/lng
 if map_data and map_data.get("last_clicked"):
