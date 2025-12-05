@@ -9,6 +9,7 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderServiceError
 import folium
 from streamlit_folium import st_folium
+from urllib.parse import urlencode, quote_plus
 
 # Page config for layout and title
 st.set_page_config(page_title="NYC Taxi Fare Estimator", layout="wide")
@@ -189,13 +190,24 @@ with st.sidebar:
                 service_url = None
 
             if service_url:
+                # Build predict URL (ensure no duplicate slashes)
+                predict_url = service_url.rstrip('/') + '/predict'
+
+                # Use urlencode with quote_plus so spaces become '+' (matches your API example)
+                query = urlencode(payload, quote_via=quote_plus)
+                full_url = f"{predict_url}?{query}"
+
                 try:
-                    # requests.post(json=...) sets Content-Type automatically
-                    resp = requests.post(service_url, json=payload, timeout=10)
+                    resp = requests.get(full_url, timeout=10)
+                    # DEBUG: show status, headers, and body to help diagnose if needed
+                    st.write("API status:", resp.status_code)
+                    st.write("API headers:", dict(resp.headers))
+                    st.write("API body:", resp.text[:2000])
+
                     resp.raise_for_status()
                     data = resp.json() if resp.content else None
 
-                    # Robust parsing of common response formats
+                    # Robust parsing of common response formats (keeps your original logic)
                     prediction = None
                     if data is None:
                         # maybe API returned a plain number in text
@@ -219,6 +231,12 @@ with st.sidebar:
                         st.success(f"Estimated fare: 💲{float(prediction):.2f}")
                         st.balloons()
 
+                except requests.HTTPError as e:
+                    # If you still see 405, show the raw response for debugging
+                    if resp.status_code == 405:
+                        st.error("API returned 405 Method Not Allowed. Tried GET to /predict; check API docs or service path.")
+                    else:
+                        st.error(f"API HTTP error: {e}")
                 except requests.RequestException as e:
                     st.error(f"API request failed: {e}")
 
