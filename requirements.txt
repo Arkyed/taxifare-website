@@ -3,3 +3,4 @@ requests
 geopy
 folium
 streamlit-folium
+streamlit_extras
